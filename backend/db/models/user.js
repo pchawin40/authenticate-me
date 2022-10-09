@@ -2,17 +2,59 @@
 const {
   Model, Validator
 } = require('sequelize');
+
+const bcrypt = require('bcryptjs');
+
 module.exports = (sequelize, DataTypes) => {
   class User extends Model {
-    /**
-     * Helper method for defining associations.
-     * This method is not a part of Sequelize lifecycle.
-     * The `models/index` file will call this method automatically.
-     */
+    //? toSafeObject: return an object with only User intance information 
+    toSafeObject() {
+      const { id, username, email } = this; // context will be the User instance
+      return { id, username, email };
+    }
+
+    //? validatePassword: return boolean whether password match User's hashedPassword
+    validatePassword(password) {
+      return bcrypt.compareSync(password, this.hashedPassword.toString());
+    }
+
+    //? getCurrentUserById: return User with provided id
+    static getCurrentUserById(id) {
+      return User.scope("currentUser").findByPk(id);
+    }
+    
+    //? login: search for User with specified credential if found
+    static async login({ credential, password }) {
+      const { Op } = require('sequelize');
+      const user = await User.scope('loginUser').findOne({
+        where: {
+          [Op.or]: {
+            username: credential,
+            email: credential
+          }
+        }
+      });
+      if (user && user.validatePassword(password)) {
+        return await User.scope('currentUser').findByPk(user.id);
+      }
+    }
+
+    //? signup: create User with provided username, email, and password
+    static async signup({ username, email, password }) {
+      const hashedPassword = bcrypt.hashSync(password);
+      const user = await User.create({
+        username,
+        email,
+        hashedPassword
+      });
+      return await User.scope('currentUser').findByPk(user.id);
+    }
+
     static associate(models) {
       // define association here
     }
-  }
+  };
+
   User.init({
     username: {
       type: DataTypes.STRING,
@@ -44,6 +86,25 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'User',
+    defaultScope: {
+      // default query that return only username
+      attributes: {
+        exclude: ["hashedPassword", "email", "createdAt", "updatedAt"]
+      }
+    },
+    scopes: {
+      // define User model scope for currentUser that exclude only hashedPassword
+      User: {
+        // model scope that only exclude hashedPassword
+        attributes: {
+          exclude: ["hashedPassword"]
+        }
+      },
+      loginUser: {
+        // include all fields
+        attributes: {}
+      }
+    },
   });
   return User;
 };
