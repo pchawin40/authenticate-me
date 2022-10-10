@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
     //? login: search for User with specified credential if found
     static async login({ credential, password }) {
       const { Op } = require('sequelize');
-      const user = await User.scope('loginUser').findOne({
+      const user = await User.scope('currentUser').findOne({
         where: {
           [Op.or]: {
             username: credential,
@@ -100,7 +100,7 @@ module.exports = (sequelize, DataTypes) => {
           exclude: ["hashedPassword"]
         }
       },
-      loginUser: {
+      currentUser: {
         // include all fields
         attributes: {}
       }
